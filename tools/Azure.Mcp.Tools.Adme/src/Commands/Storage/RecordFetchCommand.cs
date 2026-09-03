@@ -56,11 +56,19 @@ public sealed class RecordFetchCommand(IStorageService storageService)
         {
             validationResult.Errors.Add("--ids must contain at least one record id.");
         }
-        else if (options.Ids.Length > (projecting ? MaxProjectionIds : MaxBatchIds))
+        else
         {
-            validationResult.Errors.Add(projecting
-                ? $"--ids must contain at most {MaxProjectionIds} ids when --attributes is used."
-                : $"--ids must contain at most {MaxBatchIds} ids.");
+            foreach (var id in options.Ids)
+            {
+                AdmeServiceHelper.ValidateRecordId(id, "--ids", validationResult);
+            }
+
+            if (options.Ids.Length > (projecting ? MaxProjectionIds : MaxBatchIds))
+            {
+                validationResult.Errors.Add(projecting
+                    ? $"--ids must contain at most {MaxProjectionIds} ids when --attributes is used."
+                    : $"--ids must contain at most {MaxBatchIds} ids.");
+            }
         }
 
         if (projecting && options.FrameOfReference)

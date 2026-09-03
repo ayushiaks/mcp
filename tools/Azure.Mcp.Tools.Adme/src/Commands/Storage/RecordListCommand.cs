@@ -46,11 +46,7 @@ public sealed class RecordListCommand(IStorageService storageService)
     {
         base.ValidateOptions(options, validationResult);
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
-
-        if (string.IsNullOrWhiteSpace(options.Kind))
-        {
-            validationResult.Errors.Add("--kind must not be empty.");
-        }
+        AdmeServiceHelper.ValidateKind(options.Kind, validationResult);
 
         if (options.Limit is < 1 or > MaxLimit)
         {

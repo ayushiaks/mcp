@@ -77,6 +77,41 @@ internal static class AdmeServiceHelper
         }
     }
 
+    public static void ValidateRecordId(
+        string? id,
+        string optionName,
+        ValidationResult validationResult)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            validationResult.Errors.Add($"{optionName} must not be empty.");
+            return;
+        }
+
+        var partitionSeparator = id.IndexOf(':');
+        var entitySeparator = partitionSeparator < 0
+            ? -1
+            : id.IndexOf(':', partitionSeparator + 1);
+        var entityComponent = entitySeparator > partitionSeparator
+            ? id.AsSpan(partitionSeparator + 1, entitySeparator - partitionSeparator - 1)
+            : [];
+        var typeSeparator = entityComponent.IndexOf("--", StringComparison.Ordinal);
+        var hasValidFormat = partitionSeparator > 0
+            && entitySeparator > partitionSeparator + 1
+            && entitySeparator < id.Length - 1
+            && typeSeparator > 0
+            && typeSeparator < entityComponent.Length - 2
+            && !id.EndsWith(':')
+            && !id.Any(char.IsWhiteSpace);
+
+        if (!hasValidFormat)
+        {
+            validationResult.Errors.Add(
+                $"{optionName} must contain fully-qualified record ids in the format "
+                + "'{partition}:{group-type}--{EntityType}:{unique-id}'. ");
+        }
+    }
+
     /// <summary>
     /// Validates an ADME service endpoint URI.
     /// </summary>

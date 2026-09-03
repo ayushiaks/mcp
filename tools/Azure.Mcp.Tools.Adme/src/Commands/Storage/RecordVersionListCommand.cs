@@ -41,11 +41,7 @@ public sealed class RecordVersionListCommand(IStorageService storageService)
     {
         base.ValidateOptions(options, validationResult);
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
-
-        if (string.IsNullOrWhiteSpace(options.Id))
-        {
-            validationResult.Errors.Add("--id must not be empty.");
-        }
+        AdmeServiceHelper.ValidateRecordId(options.Id, "--id", validationResult);
     }
 
     /// <summary>
