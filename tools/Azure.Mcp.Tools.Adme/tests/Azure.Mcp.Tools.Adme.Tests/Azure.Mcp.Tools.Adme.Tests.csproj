@@ -2,7 +2,7 @@
   <PropertyGroup>
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
-    <HasLiveTests>false</HasLiveTests>
+    <HasLiveTests>true</HasLiveTests>
     <HasUnitTests>true</HasUnitTests>
   </PropertyGroup>
   <ItemGroup>
@@ -15,5 +15,8 @@
     <PackageReference Include="NSubstitute.Analyzers.CSharp" />
     <PackageReference Include="xunit.v3.mtp-v2" />
     <PackageReference Include="coverlet.MTP" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="TestData\well-records.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

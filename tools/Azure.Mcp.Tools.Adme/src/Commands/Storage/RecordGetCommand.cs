@@ -1,0 +1,79 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+using Azure.Mcp.Tools.Adme.Models.Storage;
+using Azure.Mcp.Tools.Adme.Options.Storage;
+using Azure.Mcp.Tools.Adme.Services;
+using Microsoft.Mcp.Core.Commands;
+using Microsoft.Mcp.Core.Models.Command;
+
+namespace Azure.Mcp.Tools.Adme.Commands.Storage;
+
+/// <summary>
+/// Gets a single OSDU record from a data partition.
+/// </summary>
+[CommandMetadata(
+    Id = "9e14b28e-95bb-4bcb-9d68-46406ccba813",
+    Name = "get",
+    Title = "Get ADME Record",
+    Description = """
+        Get one OSDU record from a data partition, by default its latest version.
+
+        Required: --id, --endpoint, and --data-partition.
+
+        --id must be a fully-qualified record id '{partition}:{group-type}--{EntityType}:{unique-id}'.
+        Optional: --version pins a specific numeric version. --attributes projects dotted-path fields
+        such as 'data.Name' to shrink the latest record payload; it cannot be combined with --version.
+
+        For several records in one call use 'azmcp adme storage record fetch'.
+        """,
+    Destructive = false,
+    Idempotent = true,
+    OpenWorld = false,
+    ReadOnly = true,
+    LocalRequired = false,
+    Secret = false)]
+public sealed class RecordGetCommand(IStorageService storageService)
+    : AuthenticatedCommand<RecordGetOptions, StorageRecord>
+{
+    private readonly IStorageService _storageService = storageService;
+
+    public override void ValidateOptions(RecordGetOptions options, ValidationResult validationResult)
+    {
+        base.ValidateOptions(options, validationResult);
+        AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
+
+        if (string.IsNullOrWhiteSpace(options.Id))
+        {
+            validationResult.Errors.Add("--id must not be empty.");
+        }
+
+        if (options.Version is <= 0)
+        {
+            validationResult.Errors.Add("--version must be a positive integer.");
+        }
+
+        if (options.Version is not null && options.Attributes is { Length: > 0 })
+        {
+            validationResult.Errors.Add("--attributes cannot be combined with --version.");
+        }
+    }
+
+    public override async Task<CommandResponse> ExecuteAsync(
+        CommandContext context, RecordGetOptions options, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _storageService.GetRecordAsync(
+                options.Endpoint, options.DataPartition, options.Id, options.Version,
+                options.Attributes, options.Tenant, cancellationToken);
+            context.Response.Results = ResponseResult.Create(result, AdmeJsonContext.Default.StorageRecord);
+        }
+        catch (Exception ex)
+        {
+            HandleException(context, ex);
+        }
+
+        return context.Response;
+    }
+}

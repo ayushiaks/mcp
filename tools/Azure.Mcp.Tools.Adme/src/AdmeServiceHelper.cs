@@ -86,7 +86,7 @@ internal static class AdmeServiceHelper
         return endpoint;
     }
 
-    public static async Task<T> SendAsync<T>(
+    public static Task<T> SendAsync<T>(
         IAzureTokenCredentialProvider credentialProvider,
         IHttpClientFactory httpClientFactory,
         string endpoint,
@@ -94,6 +94,104 @@ internal static class AdmeServiceHelper
         string? tenant,
         string path,
         JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken,
+        bool sendJsonContentTypeHint = false) =>
+        SendAsync(
+            credentialProvider,
+            httpClientFactory,
+            endpoint,
+            dataPartition,
+            tenant,
+            HttpMethod.Get,
+            path,
+            sendJsonContentTypeHint ? new StringContent(string.Empty, Encoding.UTF8, "application/json") : null,
+            extraHeaders: null,
+            typeInfo,
+            cancellationToken);
+
+    public static Task<TResponse> PostAsync<TRequest, TResponse>(
+        IAzureTokenCredentialProvider credentialProvider,
+        IHttpClientFactory httpClientFactory,
+        string endpoint,
+        string dataPartition,
+        string? tenant,
+        string path,
+        TRequest body,
+        JsonTypeInfo<TRequest> requestTypeInfo,
+        JsonTypeInfo<TResponse> responseTypeInfo,
+        IReadOnlyCollection<KeyValuePair<string, string>>? extraHeaders,
+        CancellationToken cancellationToken) =>
+        SendAsync(
+            credentialProvider,
+            httpClientFactory,
+            endpoint,
+            dataPartition,
+            tenant,
+            HttpMethod.Post,
+            path,
+            JsonContent.Create(body, requestTypeInfo),
+            extraHeaders,
+            responseTypeInfo,
+            cancellationToken);
+
+    public static Task<TResponse> PutAsync<TRequest, TResponse>(
+        IAzureTokenCredentialProvider credentialProvider,
+        IHttpClientFactory httpClientFactory,
+        string endpoint,
+        string dataPartition,
+        string? tenant,
+        string path,
+        TRequest body,
+        JsonTypeInfo<TRequest> requestTypeInfo,
+        JsonTypeInfo<TResponse> responseTypeInfo,
+        CancellationToken cancellationToken) =>
+        SendAsync(
+            credentialProvider,
+            httpClientFactory,
+            endpoint,
+            dataPartition,
+            tenant,
+            HttpMethod.Put,
+            path,
+            JsonContent.Create(body, requestTypeInfo),
+            extraHeaders: null,
+            responseTypeInfo,
+            cancellationToken);
+
+    public static async Task DeleteAsync(
+        IAzureTokenCredentialProvider credentialProvider,
+        IHttpClientFactory httpClientFactory,
+        string endpoint,
+        string dataPartition,
+        string? tenant,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        await SendAsync<object?>(
+            credentialProvider,
+            httpClientFactory,
+            endpoint,
+            dataPartition,
+            tenant,
+            HttpMethod.Delete,
+            path,
+            content: null,
+            extraHeaders: null,
+            typeInfo: null,
+            cancellationToken);
+    }
+
+    private static async Task<T> SendAsync<T>(
+        IAzureTokenCredentialProvider credentialProvider,
+        IHttpClientFactory httpClientFactory,
+        string endpoint,
+        string dataPartition,
+        string? tenant,
+        HttpMethod method,
+        string path,
+        HttpContent? content,
+        IReadOnlyCollection<KeyValuePair<string, string>>? extraHeaders,
+        JsonTypeInfo<T>? typeInfo,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataPartition);
@@ -105,9 +203,17 @@ internal static class AdmeServiceHelper
         using var client = httpClientFactory.CreateClient(HttpClientName);
         client.BaseAddress = endpointUri;
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(method, path);
+        request.Content = content;
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
         request.Headers.Add("data-partition-id", dataPartition);
+        if (extraHeaders is not null)
+        {
+            foreach (var header in extraHeaders)
+            {
+                request.Headers.Add(header.Key, header.Value);
+            }
+        }
 
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -117,9 +223,14 @@ internal static class AdmeServiceHelper
                 GetRequestFailureMessage(response.StatusCode, response.ReasonPhrase));
         }
 
+        if (typeInfo is null)
+        {
+            return default!;
+        }
+
         return await response.Content.ReadFromJsonAsync(typeInfo, cancellationToken)
             ?? throw new HttpRequestException(
-                "ADME schema request returned an empty response body.",
+                "ADME request returned an empty response body.",
                 inner: null,
                 statusCode: response.StatusCode);
     }
