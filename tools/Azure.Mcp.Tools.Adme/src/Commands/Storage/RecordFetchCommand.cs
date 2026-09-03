@@ -19,11 +19,19 @@ namespace Azure.Mcp.Tools.Adme.Commands.Storage;
     Description = """
         Retrieve multiple OSDU records by id in a single call.
 
-        Required: --ids, --endpoint, and --data-partition. --attributes projects dotted-path fields
-        such as 'data.Name'. The id limit is 20 without --attributes and 100 with it.
+        Required: --ids, --endpoint, and --data-partition. Each id is a fully-qualified
+        '{partition}:{group-type}--{EntityType}:{unique-id}', typically taken verbatim from
+        'azmcp adme storage record list'.
 
-        --frame-of-reference converts measurements to SI, coordinates to WGS84 and dates to UTC.
-        It cannot be combined with --attributes.
+        --attributes projects dotted-path fields such as 'data.Name'; use it only when the user asked
+        for particular fields, and prefer 'azmcp adme storage record get' for a single record. Without
+        it the full records are returned.
+
+        The id limit is 20 without --attributes and 100 with it.
+
+        --frame-of-reference converts measurements to SI, coordinates to WGS84 and dates to UTC on the
+        server, and reports per-record outcomes in conversionStatuses (empty for records without
+        measured or spatial fields). It cannot be combined with --attributes.
         """,
     Destructive = false,
     Idempotent = true,

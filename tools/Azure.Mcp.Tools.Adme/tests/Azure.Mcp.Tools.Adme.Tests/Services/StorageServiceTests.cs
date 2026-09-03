@@ -68,6 +68,22 @@ public sealed class StorageServiceTests
         Assert.Equal($"/api/storage/v2/records/{EscapedRecordId}/{version}", handler.LastRequest!.RequestUri!.PathAndQuery);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GetRecordAsync_RejectsMissingId(string? id)
+    {
+        var handler = JsonHandler(HttpStatusCode.OK, "{}");
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.GetRecordAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, id!, null, null, null,
+            TestContext.Current.CancellationToken));
+
+        Assert.Null(handler.LastRequest);
+    }
+
     [Fact]
     public async Task GetRecordAsync_WithVersionAndAttributes_RejectsUnsupportedCombination()
     {
@@ -95,6 +111,22 @@ public sealed class StorageServiceTests
         Assert.Equal($"/api/storage/v2/records/versions/{EscapedRecordId}", handler.LastRequest!.RequestUri!.PathAndQuery);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ListRecordVersionsAsync_RejectsMissingId(string? id)
+    {
+        var handler = JsonHandler(HttpStatusCode.OK, "{}");
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.ListRecordVersionsAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, id!, null,
+            TestContext.Current.CancellationToken));
+
+        Assert.Null(handler.LastRequest);
+    }
+
     [Fact]
     public async Task QueryRecordsByKindAsync_MapsKindLimitAndCursorToQuery()
     {
@@ -112,6 +144,38 @@ public sealed class StorageServiceTests
         Assert.Equal("25", query["limit"]);
         Assert.Equal("prev-cursor", query["cursor"]);
         Assert.Equal("application/json", handler.LastRequest.Content!.Headers.ContentType!.MediaType);
+        Assert.Equal(string.Empty, handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task QueryRecordsByKindAsync_OmitsCursorWhenUnset()
+    {
+        var handler = JsonHandler(HttpStatusCode.OK, """{"cursor":null,"results":[]}""");
+        var service = CreateService(handler);
+
+        await service.QueryRecordsByKindAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, TestConstants.WellKind, 10,
+            null, null, TestContext.Current.CancellationToken);
+
+        var query = ParseQuery(handler.LastRequest!.RequestUri!.Query);
+        Assert.Equal(2, query.Count);
+        Assert.False(query.ContainsKey("cursor"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task QueryRecordsByKindAsync_RejectsMissingKind(string? kind)
+    {
+        var handler = JsonHandler(HttpStatusCode.OK, "{}");
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.QueryRecordsByKindAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, kind!, 10, null, null,
+            TestContext.Current.CancellationToken));
+
+        Assert.Null(handler.LastRequest);
     }
 
     [Fact]
@@ -128,6 +192,21 @@ public sealed class StorageServiceTests
         Assert.Equal("/api/storage/v2/query/records:batch", handler.LastRequest.RequestUri!.PathAndQuery);
         Assert.Equal("none", handler.LastRequest.Headers.GetValues("frame-of-reference").Single());
         Assert.Equal($$"""{"records":["{{RecordId}}"]}""", handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task FetchRecordsAsync_RequestsConversionWhenFrameOfReferenceEnabled()
+    {
+        var handler = JsonHandler(HttpStatusCode.OK, """{"records":[],"conversionStatuses":[]}""");
+        var service = CreateService(handler);
+
+        await service.FetchRecordsAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, [RecordId], null, true, null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            "units=SI;crs=wgs84;elevation=msl;azimuth=true north;dates=utc;",
+            handler.LastRequest!.Headers.GetValues("frame-of-reference").Single());
     }
 
     [Fact]

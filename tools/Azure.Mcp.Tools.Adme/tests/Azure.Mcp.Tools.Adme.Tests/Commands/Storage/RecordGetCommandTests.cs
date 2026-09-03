@@ -75,4 +75,17 @@ public sealed class RecordGetCommandTests : CommandUnitTestsBase<RecordGetComman
             default!, default!, default!, default, default, default,
             TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    public async Task Execute_WithoutId_DoesNotCallService()
+    {
+        var response = await ExecuteCommandAsync(
+            "--endpoint", TestConstants.Endpoint,
+            "--data-partition", TestConstants.DataPartition);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.Status);
+        await Service.DidNotReceiveWithAnyArgs().GetRecordAsync(
+            default!, default!, default!, default, default, default,
+            TestContext.Current.CancellationToken);
+    }
 }
