@@ -48,6 +48,11 @@ public sealed class RecordGetCommand(IStorageService storageService)
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
         AdmeServiceHelper.ValidateRecordId(options.Id, "--id", validationResult);
 
+        if (options.Attributes is { Length: 0 })
+        {
+            validationResult.Errors.Add("--attributes must contain at least one field when specified.");
+        }
+
         if (options.Version is <= 0)
         {
             validationResult.Errors.Add("--version must be a positive integer.");

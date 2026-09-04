@@ -4,7 +4,9 @@
 using System.Net;
 using Azure.Mcp.Tools.Adme.Commands.Storage;
 using Azure.Mcp.Tools.Adme.Models.Storage;
+using Azure.Mcp.Tools.Adme.Options.Storage;
 using Azure.Mcp.Tools.Adme.Services;
+using Microsoft.Mcp.Core.Commands;
 using Microsoft.Mcp.Tests.Client;
 using NSubstitute;
 using Xunit;
@@ -90,5 +92,24 @@ public sealed class RecordGetCommandTests : CommandUnitTestsBase<RecordGetComman
         await Service.DidNotReceiveWithAnyArgs().GetRecordAsync(
             default!, default!, default!, default, default, default,
             TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void ValidateOptions_WithEmptyAttributes_ReturnsClearError()
+    {
+        var options = new RecordGetOptions
+        {
+            Endpoint = TestConstants.Endpoint,
+            DataPartition = TestConstants.DataPartition,
+            Id = RecordId,
+            Attributes = [],
+        };
+        var validationResult = new ValidationResult();
+
+        Command.ValidateOptions(options, validationResult);
+
+        Assert.Contains(
+            "--attributes must contain at least one field when specified.",
+            validationResult.Errors);
     }
 }

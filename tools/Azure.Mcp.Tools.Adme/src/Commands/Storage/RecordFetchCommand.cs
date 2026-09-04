@@ -51,6 +51,11 @@ public sealed class RecordFetchCommand(IStorageService storageService)
         base.ValidateOptions(options, validationResult);
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
 
+        if (options.Attributes is { Length: 0 })
+        {
+            validationResult.Errors.Add("--attributes must contain at least one field when specified.");
+        }
+
         var projecting = options.Attributes is { Length: > 0 };
         if (options.Ids is not { Length: > 0 })
         {
