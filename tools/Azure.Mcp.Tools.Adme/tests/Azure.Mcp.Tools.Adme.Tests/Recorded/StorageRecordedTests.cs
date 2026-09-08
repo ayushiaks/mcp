@@ -206,19 +206,13 @@ public sealed class StorageRecordedTests(
     }
 
     [Fact]
-    public async Task RecordFetch_with_empty_attributes_returns_full_record()
+    public async Task RecordFetch_with_empty_attributes_returns_error()
     {
         var arguments = CreateArguments();
         arguments["ids"] = new[] { seeder.FirstId };
-        arguments["attributes"] = Array.Empty<string>();
+        arguments["attributes"] = new[] { "" };
 
-        var result = await CallToolResultsAsync(RecordFetchTool, arguments);
-        var record = result.GetProperty("records").EnumerateArray().Single();
-        var data = record.GetProperty("data");
-
-        Assert.Equal(seeder.FirstId, record.GetProperty("id").GetString());
-        Assert.True(data.TryGetProperty("FacilityName", out _));
-        Assert.True(data.EnumerateObject().Count() > 1);
+        Assert.True(await CallToolReturnsErrorAsync(RecordFetchTool, arguments));
     }
 
     [Fact]

@@ -363,7 +363,7 @@ azmcp adme storage record fetch --endpoint <endpoint> \
                                   [--frame-of-reference] \
                                   [--tenant <tenant>]
 
-# Get the latest or a specific version of an OSDU record
+# Get the latest or a specific version of an OSDU record, optionally projecting attributes
 # ❌ Destructive | ✅ Idempotent | ❌ OpenWorld | ✅ ReadOnly | ❌ Secret | ❌ LocalRequired
 azmcp adme storage record get --endpoint <endpoint> \
                                 --data-partition <data-partition> \

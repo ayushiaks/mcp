@@ -37,19 +37,24 @@ public sealed class RecordGetCommandTests : CommandUnitTestsBase<RecordGetComman
     }
 
     [Fact]
-    public async Task Execute_WithVersionAndAttributes_DoesNotCallService()
+    public async Task Execute_WithVersionAndAttributes_ForwardsBothOptions()
     {
+        const long version = 1704779151123456;
+        Service.GetRecordAsync(
+                TestConstants.Endpoint, TestConstants.DataPartition, RecordId, version,
+                Arg.Is<IReadOnlyList<string>>(attributes => attributes.SequenceEqual(new[] { "data.Name" })),
+                null, Arg.Any<CancellationToken>())
+            .Returns(new StorageRecord { Id = RecordId, Version = version });
+
         var response = await ExecuteCommandAsync(
             "--endpoint", TestConstants.Endpoint,
             "--data-partition", TestConstants.DataPartition,
             "--id", RecordId,
-            "--version", "1704779151123456",
+            "--version", version.ToString(),
             "--attributes", "data.Name");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.Status);
-        await Service.DidNotReceiveWithAnyArgs().GetRecordAsync(
-            default!, default!, default!, default, default, default,
-            TestContext.Current.CancellationToken);
+        var result = ValidateAndDeserializeResponse(response, AdmeJsonContext.Default.StorageRecord);
+        Assert.Equal(version, result.Version);
     }
 
     [Theory]
@@ -109,7 +114,26 @@ public sealed class RecordGetCommandTests : CommandUnitTestsBase<RecordGetComman
         Command.ValidateOptions(options, validationResult);
 
         Assert.Contains(
-            "--attributes must contain at least one field when specified.",
+            "--attributes cannot be empty or contain blank fields when specified.",
+            validationResult.Errors);
+    }
+
+    [Fact]
+    public void ValidateOptions_WithBlankAttribute_ReturnsClearError()
+    {
+        var options = new RecordGetOptions
+        {
+            Endpoint = TestConstants.Endpoint,
+            DataPartition = TestConstants.DataPartition,
+            Id = RecordId,
+            Attributes = ["data.Name", " "],
+        };
+        var validationResult = new ValidationResult();
+
+        Command.ValidateOptions(options, validationResult);
+
+        Assert.Contains(
+            "--attributes cannot be empty or contain blank fields when specified.",
             validationResult.Errors);
     }
 }

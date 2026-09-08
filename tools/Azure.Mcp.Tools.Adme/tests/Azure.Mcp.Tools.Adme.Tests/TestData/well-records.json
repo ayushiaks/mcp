@@ -10,7 +10,13 @@
       "features": [
         {
           "type": "Feature",
-          "geometry": { "type": "Point", "coordinates": [1.9, 58.4] },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              1.9,
+              58.4
+            ]
+          },
           "properties": {}
         }
       ]

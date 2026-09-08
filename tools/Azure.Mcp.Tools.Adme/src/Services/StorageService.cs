@@ -33,11 +33,6 @@ public sealed class StorageService(
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        if (version is not null && attributes is { Count: > 0 })
-        {
-            throw new ArgumentException(
-                "Attributes cannot be requested with a specific record version.", nameof(attributes));
-        }
 
         var path = version is null
             ? $"{BasePath}/records/{Uri.EscapeDataString(id)}"

@@ -143,7 +143,26 @@ public sealed class RecordFetchCommandTests : CommandUnitTestsBase<RecordFetchCo
         Command.ValidateOptions(options, validationResult);
 
         Assert.Contains(
-            "--attributes must contain at least one field when specified.",
+            "--attributes cannot be empty or contain blank fields when specified.",
+            validationResult.Errors);
+    }
+
+    [Fact]
+    public void ValidateOptions_WithBlankAttribute_ReturnsClearError()
+    {
+        var options = new RecordFetchOptions
+        {
+            Endpoint = TestConstants.Endpoint,
+            DataPartition = TestConstants.DataPartition,
+            Ids = [RecordId],
+            Attributes = ["data.Name", " "],
+        };
+        var validationResult = new ValidationResult();
+
+        Command.ValidateOptions(options, validationResult);
+
+        Assert.Contains(
+            "--attributes cannot be empty or contain blank fields when specified.",
             validationResult.Errors);
     }
 }

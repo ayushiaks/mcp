@@ -4,6 +4,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Azure;
 using Azure.Core;
 using Azure.Mcp.Tools.Adme.Models.Storage;
 using Azure.Mcp.Tools.Adme.Services;
@@ -85,16 +86,19 @@ public sealed class StorageServiceTests
     }
 
     [Fact]
-    public async Task GetRecordAsync_WithVersionAndAttributes_RejectsUnsupportedCombination()
+    public async Task GetRecordAsync_WithVersionAndAttributes_BuildsProjectedVersionedPath()
     {
+        const long version = 1704779151123456;
         var handler = JsonHandler(HttpStatusCode.OK, "{}");
         var service = CreateService(handler);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.GetRecordAsync(
-            TestConstants.Endpoint, TestConstants.DataPartition, RecordId, 1, ["data.Name"], null,
-            TestContext.Current.CancellationToken));
+        await service.GetRecordAsync(
+            TestConstants.Endpoint, TestConstants.DataPartition, RecordId, version,
+            ["data.Name", "data.WellID"], null, TestContext.Current.CancellationToken);
 
-        Assert.Null(handler.LastRequest);
+        Assert.Equal(
+            $"/api/storage/v2/records/{EscapedRecordId}/{version}?attribute=data.Name&attribute=data.WellID",
+            handler.LastRequest!.RequestUri!.PathAndQuery);
     }
 
     [Fact]
@@ -303,11 +307,11 @@ public sealed class StorageServiceTests
         var handler = JsonHandler(HttpStatusCode.NotFound, "sensitive backend details");
         var service = CreateService(handler);
 
-        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetRecordAsync(
+        var exception = await Assert.ThrowsAsync<RequestFailedException>(() => service.GetRecordAsync(
             TestConstants.Endpoint, TestConstants.DataPartition, RecordId, null, null, null,
             TestContext.Current.CancellationToken));
 
-        Assert.Equal(HttpStatusCode.NotFound, exception.StatusCode);
+        Assert.Equal((int)HttpStatusCode.NotFound, exception.Status);
         Assert.DoesNotContain("sensitive backend details", exception.Message);
     }
 

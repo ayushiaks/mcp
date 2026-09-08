@@ -51,9 +51,10 @@ public sealed class RecordFetchCommand(IStorageService storageService)
         base.ValidateOptions(options, validationResult);
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
 
-        if (options.Attributes is { Length: 0 })
+        if (options.Attributes is not null
+            && (options.Attributes.Length == 0 || options.Attributes.Any(string.IsNullOrWhiteSpace)))
         {
-            validationResult.Errors.Add("--attributes must contain at least one field when specified.");
+            validationResult.Errors.Add("--attributes cannot be empty or contain blank fields when specified.");
         }
 
         var projecting = options.Attributes is { Length: > 0 };

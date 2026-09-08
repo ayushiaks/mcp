@@ -55,7 +55,7 @@ public sealed class AdmeSetup : IAreaSetup
             Name,
             "Azure Data Manager for Energy operations for the OSDU data platform. Commands target a specific "
                 + "endpoint and data partition and cover platform health checks and "
-                + "OSDU schema discovery.",
+                + "OSDU schema discovery, record retrieval, and version history.",
             Title);
 
         var health = new CommandGroup(

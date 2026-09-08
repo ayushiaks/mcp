@@ -27,7 +27,7 @@ namespace Azure.Mcp.Tools.Adme.Commands.Storage;
 
         Optional: --version pins a specific numeric version (discover them with
         'azmcp adme storage record version list'). --attributes projects dotted-path fields such as
-        'data.Name' to shrink the latest record payload; it cannot be combined with --version.
+        'data.Name' to shrink the record payload.
 
         For several records in one call use 'azmcp adme storage record fetch'.
         """,
@@ -48,19 +48,15 @@ public sealed class RecordGetCommand(IStorageService storageService)
         AdmeServiceHelper.ValidateTarget(options.Endpoint, options.DataPartition, validationResult);
         AdmeServiceHelper.ValidateRecordId(options.Id, "--id", validationResult);
 
-        if (options.Attributes is { Length: 0 })
+        if (options.Attributes is not null
+            && (options.Attributes.Length == 0 || options.Attributes.Any(string.IsNullOrWhiteSpace)))
         {
-            validationResult.Errors.Add("--attributes must contain at least one field when specified.");
+            validationResult.Errors.Add("--attributes cannot be empty or contain blank fields when specified.");
         }
 
         if (options.Version is <= 0)
         {
             validationResult.Errors.Add("--version must be a positive integer.");
-        }
-
-        if (options.Version is not null && options.Attributes is { Length: > 0 })
-        {
-            validationResult.Errors.Add("--attributes cannot be combined with --version.");
         }
     }
 
