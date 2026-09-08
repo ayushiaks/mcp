@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Mcp.Core.Areas.Server.Commands.Discovery;
 using Microsoft.Mcp.Core.Areas.Server.Models;
+using Microsoft.Mcp.Core.Areas.Server.Options;
 using Microsoft.Mcp.Core.Commands;
 using Microsoft.Mcp.Core.Configuration;
 using Microsoft.Mcp.Core.Helpers;
@@ -21,15 +22,16 @@ namespace Microsoft.Mcp.Core.Areas.Server.Commands.ToolLoading;
 public sealed class SingleProxyToolLoader(
     IMcpDiscoveryStrategy discoveryStrategy,
     ILogger<SingleProxyToolLoader> logger,
-    IOptions<ToolLoaderOptions> options,
+    IOptions<ServerRuntimeConfiguration> configuration,
     IOptions<McpServerConfiguration> serverConfiguration) : BaseToolLoader(logger)
 {
     private readonly IMcpDiscoveryStrategy _discoveryStrategy = discoveryStrategy ?? throw new ArgumentNullException(nameof(discoveryStrategy));
-    private readonly IOptions<ToolLoaderOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly IOptions<ServerRuntimeConfiguration> _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     private readonly string _toolName = serverConfiguration?.Value.ShortName ?? throw new ArgumentNullException(nameof(serverConfiguration));
     private readonly string _toolDescription = serverConfiguration.Value.Description;
     private readonly string _displayName = serverConfiguration.Value.DisplayName;
     private readonly JsonElement _toolSchema = BuildToolSchema(serverConfiguration!.Value.ShortName);
+    private bool StructuredOutputEnabled => _configuration.Value.StructuredOutputMode != null;
 
     private (List<Tool> Tools, string Json)? _cachedTools;
     private readonly ConcurrentDictionary<string, (List<ToolCommandInfo> Commands, string Json)> _cachedToolCommands = new(StringComparer.OrdinalIgnoreCase);
@@ -100,6 +102,7 @@ public sealed class SingleProxyToolLoader(
                     Description = _toolDescription,
                     Annotations = new ToolAnnotations(),
                     InputSchema = _toolSchema,
+                    OutputSchema = StructuredOutputEnabled ? AggregateStructuredOutput.SingleOutputSchema : null,
                 }
             ],
         };
@@ -116,7 +119,8 @@ public sealed class SingleProxyToolLoader(
     public override async ValueTask<CallToolResult> CallToolHandler(RequestContext<CallToolRequestParams> request, CancellationToken cancellationToken = default)
     {
         Activity.Current?.SetTag(TagName.IsServerCommandInvoked, false)
-            .SetTag(TagName.ToolParameters, McpHelper.CreateToolParametersTelemetry(request));
+            // At this point the tool parameters is the single tool schema
+            .SetTag(TagName.ToolParameters, McpHelper.CreateToolParametersTelemetry(request.Params?.Arguments?.Keys));
 
         var args = request.Params?.Arguments;
         string? intent = null;
@@ -163,20 +167,15 @@ public sealed class SingleProxyToolLoader(
             return await CommandModeAsync(request, intent ?? "", tool, command, toolParams, cancellationToken);
         }
 
-        return new CallToolResult
-        {
-            Content =
-            [
-                // TODO (alzimmer): Good design change here would be to return the root learn information.
-                new TextContentBlock {
-                    Text = """
-                        The "tool" and "command" parameters are required when not learning
-                        Run again with the "learn" argument to get a list of available tools and their parameters.
-                        To learn about a specific tool, use the "tool" argument with the name of the tool.
-                        """
-                }
-            ]
-        };
+        const string helpMessage = """
+            The "tool" and "command" parameters are required when not learning
+            Run again with the "learn" argument to get a list of available tools and their parameters.
+            To learn about a specific tool, use the "tool" argument with the name of the tool.
+            """;
+        return StructuredOutputHelper.CreateCallToolResult(
+            _configuration.Value.StructuredOutputMode,
+            () => helpMessage,
+            () => AggregateStructuredOutput.CreateMessage(helpMessage));
     }
 
     /// <summary>
@@ -248,8 +247,8 @@ public sealed class SingleProxyToolLoader(
     {
         var allTools = await GetAllToolsAsync(request, tool, cancellationToken);
         return allTools
-            .Where(t => !_options.Value.ReadOnly || (t.ProtocolTool.Annotations?.ReadOnlyHint == true))
-            .Where(t => !_options.Value.IsHttpMode || !McpHelper.HasHint(t.ProtocolTool, McpHelper.LocalRequiredHintMetaKey))
+            .Where(t => !_configuration.Value.ReadOnly || (t.ProtocolTool.Annotations?.ReadOnlyHint == true))
+            .Where(t => !_configuration.Value.IsHttpMode || !McpHelper.HasHint(t.ProtocolTool, McpHelper.LocalRequiredHintMetaKey))
             .ToArray();
     }
 
@@ -258,20 +257,16 @@ public sealed class SingleProxyToolLoader(
         Activity.Current?.SetTag(TagName.IsServerCommandInvoked, false)
             .SetTag(TagName.IsLearn, true);
         await InitializeRootToolsCacheAsync(cancellationToken);
-        var learnResponse = new CallToolResult
-        {
-            Content =
-            [
-                new TextContentBlock {
-                    Text = $"""
-                        Here are the available tools.
-                        Next, identify the tool you want to learn about and run again with the "learn" argument and the "tool" name to get a list of available commands and their parameters.
+        var contentText = $"""
+            Here are the available tools.
+            Next, identify the tool you want to learn about and run again with the "learn" argument and the "tool" name to get a list of available commands and their parameters.
 
-                        {_cachedTools!.Value.Json}
-                        """
-                }
-            ]
-        };
+            {_cachedTools!.Value.Json}
+            """;
+        var learnResponse = StructuredOutputHelper.CreateCallToolResult(
+            _configuration.Value.StructuredOutputMode,
+            () => contentText,
+            () => AggregateStructuredOutput.CreateToolList(_cachedTools!.Value.Json));
         var response = learnResponse;
         if (SupportsSampling(request.Server) && !string.IsNullOrWhiteSpace(intent))
         {
@@ -297,21 +292,17 @@ public sealed class SingleProxyToolLoader(
             return await RootLearnModeAsync(request, intent, cancellationToken);
         }
 
-        var learnResponse = new CallToolResult
-        {
-            Content =
-            [
-                new TextContentBlock {
-                    Text = $"""
-                        Here are the available commands and their input schema for '{tool}' tool.
-                        If you do not find a suitable command, run again with the "learn" argument and empty "command" to get a list of available commands and their input schema.
-                        Next, identify the command you want to execute and run again with the "tool", "command", and "parameters" arguments.
+        var contentText = $"""
+            Here are the available commands and their input schema for '{tool}' tool.
+            If you do not find a suitable command, run again with the "learn" argument and empty "command" to get a list of available commands and their input schema.
+            Next, identify the command you want to execute and run again with the "tool", "command", and "parameters" arguments.
 
-                        {result.Json}
-                        """
-                }
-            ]
-        };
+            {result.Json}
+            """;
+        var learnResponse = StructuredOutputHelper.CreateCallToolResult(
+            _configuration.Value.StructuredOutputMode,
+            () => contentText,
+            () => AggregateStructuredOutput.CreateToolList(result.Json));
 
         var response = learnResponse;
         if (SupportsSampling(request.Server) && !string.IsNullOrWhiteSpace(intent))
@@ -327,6 +318,8 @@ public sealed class SingleProxyToolLoader(
 
     private async Task<CallToolResult> CommandModeAsync(RequestContext<CallToolRequestParams> request, string intent, string tool, string command, Dictionary<string, object?> parameters, CancellationToken cancellationToken)
     {
+        // Here the parameters are now those for the tool call, instead of being the single parameters.
+        Activity.Current?.SetTag(TagName.ToolParameters, McpHelper.CreateToolParametersTelemetry(parameters.Keys));
         McpClient? client;
 
         try
@@ -350,7 +343,7 @@ public sealed class SingleProxyToolLoader(
             .SetTag(TagName.ToolName, command);
 
         // Enforce mode restrictions at execution time: look up the actual tool and check its properties.
-        if (_options.Value.ReadOnly || _options.Value.IsHttpMode)
+        if (_configuration.Value.ReadOnly || _configuration.Value.IsHttpMode)
         {
             var allTools = await GetAllToolsAsync(request, tool, cancellationToken);
             var resolvedTool = allTools.FirstOrDefault(t => string.Equals(t.ProtocolTool.Name, command, StringComparison.OrdinalIgnoreCase));
@@ -361,7 +354,7 @@ public sealed class SingleProxyToolLoader(
                 Activity.Current?.SetTag(TagName.ToolId, toolId)
                     .SetTag(TagName.ToolAnnotations, McpHelper.CreateToolAnnotationTelemetry(resolvedTool.ProtocolTool));
 
-                if (_options.Value.ReadOnly && resolvedTool.ProtocolTool.Annotations?.ReadOnlyHint != true)
+                if (_configuration.Value.ReadOnly && resolvedTool.ProtocolTool.Annotations?.ReadOnlyHint != true)
                 {
                     return McpHelper.InjectToolIdMetadata(new CallToolResult
                     {
@@ -376,7 +369,7 @@ public sealed class SingleProxyToolLoader(
                     }, toolId);
                 }
 
-                if (_options.Value.IsHttpMode && McpHelper.HasHint(resolvedTool.ProtocolTool, McpHelper.LocalRequiredHintMetaKey))
+                if (_configuration.Value.IsHttpMode && McpHelper.HasHint(resolvedTool.ProtocolTool, McpHelper.LocalRequiredHintMetaKey))
                 {
                     return McpHelper.InjectToolIdMetadata(new CallToolResult
                     {
@@ -399,8 +392,23 @@ public sealed class SingleProxyToolLoader(
 
             // Return without injecting tool metadata since this is a proxy and the actual tool execution happens in another server.
             // Leave the other server responsible for injecting the correct tool metadata for observability and telemetry purposes.
-            return await client.CallToolAsync(command, parameters, cancellationToken: cancellationToken);
+            var result = await client.CallToolAsync(command, parameters, cancellationToken: cancellationToken);
+
+            if (StructuredOutputEnabled && result.IsError != true)
+            {
+                var proxiedResult = JsonSerializer.SerializeToNode(result, ServerJsonContext.Default.CallToolResult);
+
+                result.StructuredContent = AggregateStructuredOutput.CreateToolResult(tool, command, proxiedResult);
+
+                if (_configuration.Value.StructuredOutputMode == StructuredOutputMode.Compact)
+                {
+                    result.Content = [new TextContentBlock { Text = StructuredOutputHelper.CompactContentMessage }];
+                }
+            }
+
+            return result;
         }
+
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception thrown while calling tool: {Tool}, command: {Command}", tool, command);
@@ -417,16 +425,10 @@ public sealed class SingleProxyToolLoader(
                             Run again with the "learn" argument and the "tool" name to get a list of available tools and their parameters.
                             """
                     }
-                ]
+                ],
+                IsError = true
             };
         }
-    }
-
-    private static bool SupportsSampling(McpServer server)
-    {
-#pragma warning disable MCP9005 // Sampling APIs remain for backward compatibility during migration.
-        return server?.ClientCapabilities?.Sampling != null;
-#pragma warning restore MCP9005
     }
 
     private static async Task NotifyProgressAsync(RequestContext<CallToolRequestParams> request, string message, CancellationToken cancellationToken)

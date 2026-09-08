@@ -221,6 +221,7 @@ internal class Program
             new Azure.Mcp.Tools.Monitor.MonitorSetup(),
             new Azure.Mcp.Tools.ApplicationInsights.ApplicationInsightsSetup(),
             new Azure.Mcp.Tools.MySql.MySqlSetup(),
+            new Azure.Mcp.Tools.Optimization.OptimizationSetup(),
             new Azure.Mcp.Tools.Policy.PolicySetup(),
             new Azure.Mcp.Tools.Postgres.PostgresSetup(),
             new Azure.Mcp.Tools.Pricing.PricingSetup(),
@@ -331,7 +332,7 @@ internal class Program
         // !!! WARNING !!!
         // stdio-transport-specific implementations of IAzureService and ICacheService.
         // The http-transport-specific implementations and configurations must be registered
-        // within ServiceStartCommand.ExecuteAsync().
+        // within ServerStartCommand.ExecuteAsync().
         services.AddHttpClientServices(configureDefaults: true);
         services.AddAzureService();
         services.AddSingleUserCliCacheService(disabled: true);

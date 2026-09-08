@@ -13,6 +13,7 @@ words:
   - appconfiguration
   - appsettings
   - azclis
+  - azurefiles
   - azureicon
   - azuremanagedlustre
   - azuremigrate
@@ -49,12 +50,14 @@ words:
   - hyperparameters
   - imageanalysis
   - inspektor
+  - irql
   - managedcluster
   - mypass
   - mysvc
   - myuser
   - nettrace
   - newname
+  - nistp
   - noauth
   - nodetype
   - notanarea
@@ -67,7 +70,10 @@ words:
   - platformlandingzone
   - precheck
   - prereq
+  - privateendpoint
   - registeredserver
+  - reprotect
+  - reprotection
   - scheduledtasks
   - serviceaccount
   - servicefabric
@@ -80,6 +86,7 @@ words:
   - syncgroup
   - targetdir
   - tcount
+  - testcontainer
   - toolsets
   - toplist
   - webjobs
